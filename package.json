@@ -1,6 +1,6 @@
 {
   "name": "localization_gui",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "GUI to show localization of human or device of any type",
   "main": "server.js",
   "scripts": {
