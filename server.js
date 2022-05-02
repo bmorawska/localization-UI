@@ -22,10 +22,16 @@ io.sockets.on('connection', newConnection);
 function newConnection(socket) {
     console.log('new connection: ' + socket.id);
 
-    socket.on('position', mouseMsg);
-    function mouseMsg(data) {
+    socket.on('position', tagMsg);
+    function tagMsg(data) {
         socket.broadcast.emit('position', data);
         console.log(data);
     }
 
+    socket.on('anchors', anchorMsg);
+    function anchorMsg(data) {
+        socket.broadcast.emit('anchors', data);
+        console.log("ANCHORS:")
+        console.log(data);
+    }
 }
