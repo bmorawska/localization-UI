@@ -1,72 +1,130 @@
-let gridDensity;
+/* Units and sizes definition */
 const pixelsInMeter = 100;
+const gridDensity = pixelsInMeter;
+const anchor_size = pixelsInMeter / 2;
+
+/* Variables */
 let sf; // scaleFactor
 let mx, my; // mouse coords;
+let px, py; // pan X
+let tx, ty; // tag position
+let anchors = []; // place for anchors positions and ids
 
-let anchors = [];
-let anchor_size;
-let px = 0; // pan X
-let py = 0; // pan Y
+/* Error estimation */
+const errorSamplesNumber = 10; // number of samples taking into account in radius estimation
+const lastValuesX = []; // values to estimate tag error radius in X
+const lastValuesY = []; // values to estimate tag error radius in Y
+let lastAnimationRadius;
+let animationRadius;
+const animationAlpha = 0.6;
 
-let tx, ty; //tag position
-
-let animation_radius;
+/* Websocket communication */
 let connection_established = true;
-
-var socket;
-
-let visually_impaired = false;
-let grid_attraction = false;
+let socket;
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
 
-  gridDensity = pixelsInMeter;
+  // Variables initialization
   sf = 1;
-  animation_radius = 0;
-  anchors = [];
-  anchor_size = pixelsInMeter / 2;
-
+  animationRadius = [0.0, 0.0];
+  lastAnimationRadius = animationRadius;
   tx = 0;
   ty = 0;
+  px = 0;
+  py = 0;
 
-  socket = io.connect("http://127.0.0.1:3000");
+  iter_last_values = 0;
+
+  // Websocket connection
+  socket = io.connect("http://localhost:3000"); //ip of laptop
   socket.on("position", updateTag);
   socket.on("anchors", updateAnchors);
-
-  button = createImg("sign.png");
-  button.position(windowWidth - 100, 30);
-  button.mousePressed(changeBG);
+  socket.on("error", showError);
 }
 
-function changeBG() {
-  visually_impaired = !visually_impaired;
+/**
+ * The function shows positioning error received from Pozyx device in console.
+ * @param {*} data : data received from websocket.
+ */
+function showError(data) {
+  console.log(data);
 }
 
-function updateTag(data) {
-  if (grid_attraction) {
-    tx = int((data.x * pixelsInMeter) / 100) * 100;
-    ty = int((data.y * pixelsInMeter) / 100) * 100;
-  } else {
-    tx = data.x * pixelsInMeter;
-    ty = data.y * pixelsInMeter;
-  }
-}
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+/**
+ * The function loads anchors positions and ids.
+ * @param {*} data : data received from websocket.
+ */
 function updateAnchors(data) {
-  console.log('data');
+  data.anchors.forEach(function (element) {
+    anchors.push([element.name, element.x, element.y]);
+  });
 }
 
-function drawCoordinateSystem() {
-  if (visually_impaired) {
-    stroke(255, 255, 0, 100);
-    strokeWeight(5);
-  } else {
-    stroke(255, 0, 0, 32);
-    strokeWeight(1);
+/**
+ * The function updates tag position and scale it to GUI units.
+ * It is called as a callback, when websocket of topic 'position' is received.
+ * @param {*} data : data received from websocket.
+ */
+function updateTag(data) {
+  tx = data.x * pixelsInMeter;
+  ty = data.y * pixelsInMeter;
+}
+
+/**
+ * Calculates mean value of array.
+ * @param {*} arr: input array
+ * @returns mean value
+ */
+function mean(arr) {
+  let sum = 0;
+  for (let i = 0; i < arr.length; i++) {
+    sum += arr[i];
+  }
+  return sum / arr.length;
+}
+
+/**
+ * Estimates error in x and y as maximal difference between values in last errorSamplesNumber measurements.
+ */
+function estimateError() {
+  lastValuesX.push(tx);
+  lastValuesY.push(ty);
+  if (lastValuesX.length <= 1) {
+    return [0.0, 0.0];
+  } else if (lastValuesX.length > 10) {
+    lastValuesX.shift();
+    lastValuesY.shift();
   }
 
-  let gd = gridDensity * sf;
+  const meanX = mean(lastValuesX);
+  const meanY = mean(lastValuesY);
+  const maxDiffX = new Array(errorSamplesNumber).fill(0);
+  const maxDiffY = new Array(errorSamplesNumber).fill(0);
+
+  for (let i = 0; i < lastValuesX.length; i++) {
+    maxDiffX[i] = Math.abs(lastValuesX[i] - meanX);
+    maxDiffY[i] = Math.abs(lastValuesY[i] - meanY);
+  }
+
+  maxx =
+    Math.max(...maxDiffX) * animationAlpha +
+    lastAnimationRadius[0] * (1 - animationAlpha);
+  maxy =
+    Math.max(...maxDiffY) * animationAlpha +
+    lastAnimationRadius[0] * (1 - animationAlpha);
+
+  animationRadius = [maxx, maxy];
+  lastAnimationRadius = animationRadius;
+}
+
+/**
+ * Draws coordinate system in fit scale.
+ */
+function drawCoordinateSystem() {
+  stroke(255, 0, 0, 32); // light red
+  let gd = gridDensity * sf; // scale
+
   // vertical lines
   for (let i = px; i > -windowWidth; i = i - gd) {
     line(i, 0, i, windowHeight);
@@ -83,68 +141,63 @@ function drawCoordinateSystem() {
   }
 }
 
-function return2Zero() {
-  sf = 1;
-  px = 0;
-  py = 0;
-}
-
+/**
+ * Draws the tag and its error on a map.
+ * @param {*} posX: x coordinate of tag
+ * @param {*} posY: y coordinate of tag
+ */
 function drawTag(posX, posY) {
-  animation_radius += 2;
-  if (animation_radius > 100) {
-    animation_radius = 0;
-  }
-
   push();
-  if (visually_impaired) {
-    fill(255, 255, 0, 220);
-    ellipse(posX * sf + px, posY * sf + py, 75 * sf, 75 * sf);
-  } else {
-    fill(255, 0, 0, 220);
-    ellipse(posX * sf + px, posY * sf + py, 50 * sf, 50 * sf);
-  }
-
+  fill(255, 0, 0, 220);
+  const radius = 50 * sf;
+  ellipse(posX * sf + px, posY * sf + py, radius, radius);
   if (connection_established) {
-    if (visually_impaired) {
-      fill(255, 255, 0, 64);
-    } else {
-      fill(255, 0, 0, 64);
-    }
+    fill(255, 0, 0, 64);
     ellipse(
       posX * sf + px,
       posY * sf + py,
-      animation_radius * sf,
-      animation_radius * sf
+      radius + animationRadius[0] * sf,
+      radius + animationRadius[1] * sf
     );
   }
   pop();
 }
 
+/**
+ * Draws scale ruler onto a map.
+ */
 function drawRuler() {
   push();
-  if (visually_impaired) {
-    stroke(255, 255, 0, 200);
-    fill(255, 255, 0, 32);
-  } else {
-    stroke(255, 0, 0, 200);
-    fill(255, 0, 0, 32);
-  }
-
-  rect(windowWidth - 200, windowHeight - 150, 100, 100);
-  pop();
-
-  push();
-  if (visually_impaired) {
-    stroke(255, 255, 0);
-  } else {
-    stroke(0);
-  }
-
+  stroke(0);
+  line(
+    windowWidth - 200,
+    windowHeight - 50,
+    windowWidth - 100,
+    windowHeight - 50
+  );
+  line(
+    windowWidth - 200,
+    windowHeight - 40,
+    windowWidth - 200,
+    windowHeight - 60
+  );
+  line(
+    windowWidth - 100,
+    windowHeight - 40,
+    windowWidth - 100,
+    windowHeight - 60
+  );
   textSize(30);
-  text("1m", windowWidth - 190, windowHeight - 55);
+  text("1m", windowWidth - 170, windowHeight - 55);
   pop();
 }
 
+/**
+ * Draws the shape of anchor (triangle).
+ * @param {*} cx: x coordinate of anchor - center of triangle
+ * @param {*} cy: y coordinate of anchor - center of triangle
+ * @param {*} a:  side size of triangle
+ */
 function drawTriangle(cx, cy, a) {
   x1 = int(cx - a / 2);
   x2 = int(cx);
@@ -157,27 +210,20 @@ function drawTriangle(cx, cy, a) {
   triangle(x1, y1, x2, y2, x3, y3);
 }
 
+/**
+ * Iterates through anchors and draws them on the map in fit scale.
+ */
 function drawAnchors() {
   let a = anchor_size * sf;
-  if (visually_impaired) {
-    stroke(255, 255, 0);
-    fill(255, 255, 0);
-  } else {
-    stroke(0);
-    fill(0);
-  }
+  stroke(0);
+  fill(0);
   anchors.forEach((element) => {
     x = element[1] * pixelsInMeter * sf + px;
     y = element[2] * pixelsInMeter * sf + py;
     drawTriangle(x, y, a);
     push();
-    if (visually_impaired) {
-      stroke(255, 255, 0);
-      textSize(40);
-    } else {
-      stroke(0);
-      textSize(20);
-    }
+    stroke(0);
+    textSize(20);
     text(
       element[0],
       element[1] * 100 * sf + 30 + px,
@@ -187,18 +233,18 @@ function drawAnchors() {
   });
 }
 
+/**
+ * Loop function.
+ */
 function draw() {
   mx = mouseX;
   my = mouseY;
 
-  if (visually_impaired) {
-    background(0);
-  } else {
-    background(255);
-  }
+  background(255);
   drawAnchors();
   drawCoordinateSystem();
   drawRuler();
+  estimateError();
 
   if (connection_established) {
     drawTag(tx, ty);
@@ -210,10 +256,16 @@ function draw() {
   }
 }
 
+/**
+ * Adjusts window size.
+ */
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 }
 
+/**
+ * When mouse wheel scrolled, the function changes scale.
+ */
 window.addEventListener("wheel", function (e) {
   if (e.deltaY > 0) sf *= 1.05;
   else sf *= 0.95;

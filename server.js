@@ -10,7 +10,7 @@ console.log('My socket server is running.')
 
 var io = socket(server, {
     cors: {
-        origin: "http://localhost:3000",
+        origin: "http://127.0.0.1:3000",
         methods: ["GET", "POST"],
         credentials: true,
     },
@@ -32,6 +32,12 @@ function newConnection(socket) {
     function anchorMsg(data) {
         socket.broadcast.emit('anchors', data);
         console.log("ANCHORS:")
+        console.log(data);
+    }
+
+    socket.on('error', errorMsg);
+    function errorMsg(data) {
+        socket.broadcast.emit('error', data);
         console.log(data);
     }
 }
