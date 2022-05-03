@@ -22,6 +22,10 @@ const animationAlpha = 0.6;
 let connection_established = true;
 let socket;
 
+/* Zooming buttons */
+let buttonZoomIn;
+let buttonZoomOut;
+
 function setup() {
   createCanvas(windowWidth, windowHeight);
 
@@ -36,6 +40,16 @@ function setup() {
 
   iter_last_values = 0;
 
+  buttonZoomIn = createImg('imgs/zoomIn.png', 'zoom in');
+  buttonZoomIn.position(30, windowHeight - 200);
+  buttonZoomIn.style('background-color', color(255, 255, 255, 255));
+  buttonZoomIn.mousePressed(zoomIn);
+
+  buttonZoomOut = createImg('imgs/zoomOut.png', 'zoom out')
+  buttonZoomOut.position(30, windowHeight - 120);
+  buttonZoomOut.style('background-color', color(255, 255, 255, 255));
+  buttonZoomOut.mousePressed(zoomOut);
+  
   // Websocket connection
   socket = io.connect("http://0.0.0.0:3000"); //ip of laptop
   socket.on("position", updateTag);
@@ -270,3 +284,17 @@ window.addEventListener("wheel", function (e) {
   if (e.deltaY > 0) sf *= 1.05;
   else sf *= 0.95;
 });
+
+/**
+ * Zooms in screen on touch display.
+ */
+function zoomIn() {
+  sf *= 1.05;
+}
+
+/**
+ * Zooms out screen on touch display.
+ */
+function zoomOut() {
+  sf *= 0.95;
+}
