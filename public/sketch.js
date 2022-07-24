@@ -26,6 +26,10 @@ let socket;
 let buttonZoomIn;
 let buttonZoomOut;
 
+
+/* Camera Image */
+let camera_image;
+
 function setup() {
   createCanvas(windowWidth, windowHeight);
 
@@ -49,11 +53,15 @@ function setup() {
   buttonZoomOut.position(30, windowHeight - 120);
   buttonZoomOut.style('background-color', color(255, 255, 255, 255));
   buttonZoomOut.mousePressed(zoomOut);
+
+  camera_image = loadImage("");
+
   
   // Websocket connection
   socket = io.connect("http://0.0.0.0:3000"); //ip of laptop
   socket.on("position", updateTag);
   socket.on("anchors", updateAnchors);
+  socket.on("frame", showImage);
   socket.on("error", showError);
 }
 
@@ -63,6 +71,14 @@ function setup() {
  */
 function showError(data) {
   console.log(data);
+}
+
+/**
+ * The function shows Image stream.
+ * @param {*} data : data received from websocket.
+ */
+function showImage(data) {
+  camera_image = loadImage('data:image/png;base64,' + data);
 }
 
 /**
@@ -247,6 +263,11 @@ function drawAnchors() {
   });
 }
 
+function drawCameraImage()
+{
+  image(camera_image, windowWidth - 480, 0, 480, 360);
+}
+
 /**
  * Loop function.
  */
@@ -259,6 +280,7 @@ function draw() {
   drawCoordinateSystem();
   drawRuler();
   estimateError();
+  drawCameraImage()
 
   if (connection_established) {
     drawTag(tx, ty);

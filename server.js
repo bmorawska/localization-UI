@@ -6,7 +6,7 @@ var server = app.listen(3000);
 
 app.use(express.static('public'));
 
-console.log('My socket server is running.')
+console.log('My socket server is running on http://127.0.0.1:3000.')
 
 var io = socket(server, {
     cors: {
@@ -35,9 +35,15 @@ function newConnection(socket) {
         console.log(data);
     }
 
+    socket.on('frame', imgMsg);
+    function imgMsg(data) {
+        const frame = Buffer.from(data, 'base64').toString()
+        socket.broadcast.emit('frame', frame);
+    }
+
     socket.on('error', errorMsg);
     function errorMsg(data) {
         socket.broadcast.emit('error', data);
         console.log(data);
-    }
+    }   
 }
